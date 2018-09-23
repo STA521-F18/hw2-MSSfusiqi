@@ -1,118 +1,207 @@
 ---
 title: "HW2 STA521 Fall18"
-author: '[Your Name Here, netid and github username here]'
+author: '[Siqi Fu,sf236, MSSfusiqi]'
 date: "Due September 23, 2018 5pm"
 output:
   pdf_document: default
   html_document:
     df_print: paged
 ---
-
-## Backgound Reading
-
-Readings: Chapters 3-4 in Weisberg Applied Linear Regression
-
-
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
-
-This exercise involves the UN data set from `alr3` package. Install `alr3` and the `car` packages and load the data to answer the following questions adding your code in the code chunks.  Please add appropriate code to the chunks to suppress messages and warnings as needed once you are sure the code is working properly and remove instructions if no longer needed. Figures should have informative captions. Please switch the output to pdf for your final version to upload to Sakai. **Remove these instructions for final submission**
-
 
 ## Exploratory Data Analysis
 
 0.  Preliminary read in the data.  After testing, modify the code chunk so that output, messages and warnings are suppressed.  *Exclude text from final*
 
-```{r data}
+```{r data,warning=FALSE}
+library(carData)
+library(car)
 library(alr3)
 data(UN3, package="alr3")
-help(UN3) 
-library(car)
+library(knitr)
+library(ggplot2)
+library(GGally)
+
 ```
 
 
 1. Create a summary of the data.  How many variables have missing data?  Which are quantitative and which are qualtitative?
 
 ```{r}
-
+summary(UN3)
 ```
 
+Six variables contains missing data. All the seven variables are quantatitive. 
+
+
+
+
+\newpage
 2. What is the mean and standard deviation of each quantitative predictor?  Provide in a nicely formatted table.
 
 ```{r}
-
+UN3_omit=na.omit(UN3)
+a1=as.data.frame(lapply(UN3_omit, function(x){ c('mean'=mean(x), 'sd'=sd(x))}))
+kable(t(round(a1, digits = 3)),col.names=c("mean","sd"),caption="Mean and Sd Table",format="markdown")
 ```
 
-
-3. Investigate the predictors graphically, using scatterplots or other tools of your choice. Create some plots
-highlighting the relationships among the predictors. Comment
-on your findings regarding trying to predict `ModernC` from the other variables.  Are there potential outliers, nonlinear relationships or transformations that appear to be needed based on your graphical EDA?
+  
+  
+3. Investigate the predictors graphically, using scatterplots or other tools of your choice. Create some plots highlighting the relationships among the predictors. Comment on your findings regarding trying to predict `ModernC` from the other variables.  Are there potential outliers, nonlinear relationships or transformations that appear to be needed based on your graphical EDA?
 
 ```{r}
+ggpairs(UN3_omit,columns=c(1:7),title="Scatterplot of predictors")
 
 ```
+  
+  
+The ggpairs is able to compare all the predictors. There appears to be a nonlinear relationship between ModernC and ppgdp. As a result, a transformation is needed for ppgdp. In addition, there also appears to be a nonlinear relationship between ModernC and Pop, so Pop also needs a transdormation. There are two outliers in Pop.
+
+
 
 ## Model Fitting
 
 4.  Use the `lm()` function to perform a multiple linear regression with `ModernC` as the response and all other variables as the predictors, using the formula `ModernC ~ .`, where the `.` includes all remaining variables in the dataframe.  Create  diagnostic residual plot from the linear model object and comment on results regarding assumptions.  How many observations are used in your model fitting?
 
 ```{r}
-
+reg1=lm(ModernC~Change+PPgdp+Frate+Pop+Fertility+Purban,data=UN3_omit)
+summary(reg1)
+par(mfrow=c(2,2)) 
+plot(reg1,caption ="Diagnostic Redisual Plot")
 ```
+    
+125 observations are used in our model fitting.   
 
+Comment on results:  
+
+(1). residuals& fitted values: This plot shows if residuals have non-linear patterns. The residuals cluster in the right part of the plot. So this plot shows that the residuals appears to have non-linear relationship.
+
+
+(2). Normal Q-Q: This plot shows if residuals are normally distributed. In our case, Point 8 and point 28 do not follow the noremal line, which cannot indicate residuals are normally distrubuted.
+
+(3). Scale-location: This plot shows if residuals are spread equally along the ranges of predictors, which is method to check homoscedasticity. In our case, the residuals a pattern of fan shape, so the variance is not constant. 
+
+(4). Residuals VS Leverage: This plot helps us to find influential cases. In our case, point 25 and point 50 stay far beyond cook's distance line. So thesr two are influencial points. 
+
+
+\newpage
 5. Examine added variable plots `car::avPlot` or `car::avPlots`  for your model above. Are there any plots that suggest that transformations are needed for any of the terms in the model? Describe. Is it likely that any of the localities are influential for any of the terms?  Which localities?  Which terms?  
 
 ```{r}
-
+car::avPlots(lm(ModernC~Change+PPgdp+Frate+Pop+Fertility+Purban,data = UN3_omit))
 ```
+  
+  
+  av plots displays the relationship between Y and X, but controling other predictors. The av Plot of Pop shows the residuals are clustered in the left side of the plot instead of spreding evenly around regression line, so a transformation is needed. Still in the Pop plot, point 25 and point 50 are far away from other points, which can indicates these two (India and China) are influential points. In addition, the PPgdp plot also shows a weak cluster in the left sides of the plots, and point 79 and 109 (Norway and Switzerland) are influential points. 
+  
 
+
+
+
+  
+    
+    
+  
 6.  Using the Box-Tidwell  `car::boxTidwell` or graphical methods find appropriate transformations of the predictor variables to be used as predictors in the linear model.  If any predictors are negative, you may need to transform so that they are non-negative.  Describe your method and  the resulting transformations.
 
 
 ```{r}
-
+car::boxTidwell(ModernC~Pop+PPgdp,other.x=~Change+Frate+Fertility+Purban,data=UN3_omit)
 ```
-
+  
+ According to the av plot above, two predictors (PPgdp and Pop) are needed to be transformed. The lambda for Pop is 0.414 and for PPgdp is -0.308. Lambda valur for Pop is near 0.5, which corresponding a square root transformation. The lambda value for PPgdp can be rounded to zero, so it corrsponds with a log transformation.
+  
+  
 7. Given the selected transformations of the predictors, select a transformation of the response using `MASS::boxcox` or `car::boxCox` and justify.
 
-
+```{r}
+MASS::boxcox(lm(ModernC~Change+log(PPgdp)+Frate+sqrt(Pop)+Fertility+Purban,data = UN3_omit))
+```
+  
+Acccording to the plot above, the lambda value for response variable is close to one, so the response variable does not need a transformation. 
+ 
+8.  Fit the regression using the transformed variables.  Provide residual plots and added variables plots and comment.  If you feel that you need additional transformations of either the response or predictors, repeat any steps until you feel satisfied.
 ```{r}
 
-```
+reg2=lm(ModernC~Change+log(PPgdp)+Frate+sqrt(Pop)+Fertility+Purban,data = UN3_omit)
+par(mfrow=c(2,2))
+plot(reg2)
+car::avPlots(reg2)
+```  
+\newpage
+Comment:
+The residual vs Fitted plot still shows a cluster on the right part of plot. The Normal Q-Q plot still has heavy tail which indicated that residuals are not normally distributed. The scale location plot imptoved that the residuals are spread around the zero line. The residual vs leverage plot does not have much changeL: India and China are still influential points.
 
-8.  Fit the regression using the transformed variables.  Provide residual plots and added variables plots and comment.  If you feel that you need additional transformations of either the response or predictors, repeat any steps until you feel satisfied.
-
+The av plot of PPgdp and Pop have improvement: the residual points become more spreading instead of clustering. 
+  
 9. Start by finding the best transformation of the response and then find transformations of the predictors.  Do you end up with a different model than in 8?
 
-
 ```{r}
-
+library(forecast)
+MASS::boxcox(lm(ModernC~Change+PPgdp+Frate+Pop+Fertility+Purban,data=UN3_omit))
+car::boxTidwell(ModernC~Pop+PPgdp,other.x=~Change+Frate+Fertility+Purban,data=UN3_omit)
+reg3=lm(ModernC~Change+log(PPgdp)+Frate+sqrt(Pop)+Fertility+Purban,data=UN3_omit)
+par(mfrow=c(2,2))
+plot(reg3)
+car::avPlots(reg3)
 ```
 
+If I start by finding the best transformation of the response variable first and then find the transformation of predictors, the result is the same as before.  
+ 
 10.  Are there any outliers or influential points in the data?  Explain.  If so, refit the model after removing any outliers and comment on residual plots.
 
-
 ```{r}
-
+UN3_out=UN3_omit[-c(25,50),]
+reg4=lm(ModernC~Change+log(PPgdp)+Frate+sqrt(Pop)+Fertility+Purban,data=UN3_out)
+par(mfrow=c(2,2))
+plot(reg4)
+car::avPlots(reg4)
 ```
 
+According to the av plot of Pop above, China and India are two obvious outliers, so I delete these two observations in the dataset. After I delete these two outliers, the av plot of Pop becomes more sepread then before. 
+\newline
+\newline
+\newline
+\newline
 ## Summary of Results
 
 11. For your final model, provide summaries of coefficients with 95% confidence intervals in a nice table with interpretations of each coefficient.  These should be in terms of the original units! 
 
 
-```{r}
-
+```{r,warning=FALSE}
+summary(reg4)$coefficient
+a=as.data.frame(summary(reg4)$coefficient)
+b=as.data.frame(confint(reg4))
+c=data.frame(b[,0],a[,1],b[,1],b[,2])
+kable(round(c,3),col.names=c("Estimates","lower CI","upper CI"),
+      caption="Coefficients and 95% CI",format="markdown")
 ```
+    
+    
+Back to Original Unit:\
+log(PPgdp):$5.183*log(1.01)$\
+sqrt(Pop):$\frac{0.024(\sqrt{1.01}-1)}{0.024}$\
+  
+    
+    
+Interpretation:\
+- Change: 1% increase in Change implies 4.8% increase in ModernC \
+- PPgdp:  1% increase in PPgdp implies 5.1% increase in ModernC.
+- Frate: 1% increase in Frate implies a 0.18% increase in ModernC.\
+- Pop: 1% increase of population implies 0.499% increase in ModernC.\
+- Fertility: 1% increase in Fertility implies 9.13% percent decrease in ModernC\
+- Purban: 1% increase in Purban implies 0.029% decrease in ModernC\
+
+
+
 
 
 12. Provide a paragraph summarizing your final model  and findings suitable for the US envoy to the UN after adjusting for outliers or influential points.   You should provide a justification for any case deletions in your final model
+   
+The final model is $ModernC=13.75+4.84Change+5.18 log(PPgdp)+0.18Frate+0.023 sqrt(Pop)-9.32 Fertility-0.029 Purban+\epsilon_i$. I deleted two outliers according to the av plot: China and India. Also I apply log transformation to PPgdp and square root transformation to Pop predictors. I used the dataset which has already been omitted NA variables. R automatically delected NA values when performing regression analysis, so using the dataset without NA values does not affect our results. 
 
-
-```{r}
-
-```
 
 
 ## Methodology
@@ -121,4 +210,39 @@ on your findings regarding trying to predict `ModernC` from the other variables.
 13. Prove that the intercept in the added variable scatter plot will always be zero.  _Hint:  use the fact that if $H$ is the project matrix which contains a column of ones, then $1_n^T (I - H) = 0$.  Use this to show that the sample mean of residuals will always be zero if there is an intercept._
 
 
+$$
+\begin{split}
+(1-H)Y&=\hat\beta_0+\hat\beta_1(1-H)X_i \\[2ex]
+(1-H)Y&=\hat\beta_0\vec{1}+[X_i^T(I-H)(I-H)X_i]^{-1}((1-H)X_i)^T(1-H)Y(I-H)X_i\\[2ex]
+X_i^T(I-H)Y&=X_i^T\hat\beta_0\vec{1}+X_i^T[X_i^T(I-H)X_i]^{-1}X_i^T(1-H)Y(1-H)X_i\\[2ex]
+X_i^T(I-H)Y&=X_i^T\vec{1}\hat\beta_0+X_i^T(I-H)X_i[X_i^T(1-H)X_i]^{-1}X_i^T(1-H)Y\\[2ex]
+X_i^T(I-H)Y&=\sum_{i}X_i\hat\beta_0+X_i^T(1-H)Y\\[2ex]
+\sum_{i}X_i\hat\beta_0&=0\\[2ex]
+\hat\beta_0&=0\\[2ex]
+\end{split}
+$$
+
+
+
+
+
+
+
+
+
+
 14. For multiple regression with more than 2 predictors, say a full model given by `Y ~ X1 + X2 + ... Xp`   we create the added variable plot for variable `j` by regressing `Y` on all of the `X`'s except `Xj` to form `e_Y` and then regressing `Xj` on all of the other X's to form `e_X`.  Confirm that the slope in a manually constructed added variable plot for one of the predictors  in Ex. 10 is the same as the estimate from your model. 
+
+```{r}
+reg4=lm(ModernC~Change+log(PPgdp)+Frate+sqrt(Pop)+Fertility+Purban,data=UN3_out)
+summary(reg4)$coef
+e_Y=residuals(lm(ModernC~log(PPgdp)+Frate+sqrt(Pop)+Fertility+Purban,data=UN3_out))
+e_X=residuals(lm(Change~log(PPgdp)+Frate+sqrt(Pop)+Fertility+Purban,data=UN3_out))
+summary(lm(e_Y ~ e_X, data=UN3_omit))$coef
+```
+ 
+I first regress ModernC(response variable) on all predictors except Change, and then regress Change on the other predictors. Then regress the residuals from first regression on the residuals from the second regression. I find that the coefficient for e_x and Change are same: both are 4.83. 
+
+
+
+
